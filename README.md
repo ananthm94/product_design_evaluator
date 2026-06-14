@@ -1,5 +1,6 @@
 ---
-title: Product Design Evaluator
+
+## title: Product Design Evaluator
 emoji: 🎨
 colorFrom: indigo
 colorTo: blue
@@ -7,9 +8,10 @@ sdk: docker
 app_port: 8501
 pinned: false
 short_description: AI multi-agent design critique with image RAG
----
 
 # Design Analysis Suite
+
+[[Try the Live Demo on Hugging Face Spaces](http://huggingface.co/spaces/ananthmohan/Product_Design_Evaluator)]
 
 Multimodal AI Design Analysis Suite is a Streamlit app for reviewing product and app screenshots. It combines image-based retrieval, design knowledge sources, and multiple specialist LLM agents to produce a structured design critique.
 
@@ -274,23 +276,22 @@ History uses Qdrant when `QDRANT_URL` is set, and a local on-disk LanceDB store 
 
 - **On the Space:** set `QDRANT_URL` → persistent, shared history (the Space disk is ephemeral).
 - **Locally:** set the same `QDRANT_URL` to share one history with the Space, or leave it unset to
-  keep a separate on-disk history under `history/`.
+keep a separate on-disk history under `history/`.
 
 ### One-time setup
 
 1. **Qdrant Cloud** — create a free 1GB cluster at `cloud.qdrant.io`; copy the cluster URL + an API key.
 2. **Hugging Face** — create a new **Space** → SDK **Docker** → **CPU basic (free)** hardware. The
-   committed `Dockerfile` installs deps (CPU torch) and runs `streamlit run app.py` on port 8501.
+  committed `Dockerfile` installs deps (CPU torch) and runs `streamlit run app.py` on port 8501.
    Make it **private** so your `OPENROUTER_API_KEY` is not spent by random visitors.
 3. **Space → Settings → Secrets** — add `OPENROUTER_API_KEY`, `TAVILY_API_KEY`, `QDRANT_URL`,
-   `QDRANT_API_KEY` (and optional `LANGSMITH_API_KEY`). The sidebar prefills from these.
+  `QDRANT_API_KEY` (and optional `LANGSMITH_API_KEY`). The sidebar prefills from these.
 4. **Push the repo** to the Space's git remote:
-
-   ```bash
+  ```bash
    git init && git add -A && git commit -m "Deploy design analysis suite"
    git remote add space https://huggingface.co/spaces/<user>/<space-name>
    git push space main      # authenticate with `huggingface-cli login` if prompted
-   ```
+  ```
 
 First boot installs dependencies and downloads the CLIP weights (cold start ~1–2 min). The
 `design_history` collection is created automatically on the first analysis. The free Space sleeps
