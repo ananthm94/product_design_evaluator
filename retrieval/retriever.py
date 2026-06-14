@@ -1,14 +1,26 @@
+import os
+
 import lancedb
 from PIL import Image
 
-from config.settings import LANCEDB_PATH, TEXT_TOP_K, IMAGE_TOP_K
+from config.settings import LANCEDB_PATH, TEXT_TOP_K, IMAGE_TOP_K, REFERENCE_IMAGES_DIR
 from knowledge_base.embedder import embed_image, embed_text
 from models.schemas import RetrievalContext, RetrievedTextChunk, RetrievedImage
 
 
+def _resolve_ref_path(stored_path: str) -> str:
+    """Reference images are addressed by filename so paths stay portable.
+
+    The LanceDB index may have been built on another machine (absolute paths),
+    so resolve each image against the current reference-images directory.
+    """
+    candidate = os.path.join(REFERENCE_IMAGES_DIR, os.path.basename(stored_path))
+    return candidate if os.path.exists(candidate) else stored_path
+
+
 def _row_to_image(row: dict) -> RetrievedImage:
     return RetrievedImage(
-        image_path=row["image_path"],
+        image_path=_resolve_ref_path(row["image_path"]),
         source=row["source"],
         category=row.get("category", ""),
         caption=row.get("caption", ""),
@@ -62,13 +74,7 @@ def retrieve_context(image: Image.Image) -> RetrievalContext:
         image_results = image_table.search(query_vector).limit(IMAGE_TOP_K).to_list()
 
         for row in image_results:
-            similar_images.append(RetrievedImage(
-                image_path=row["image_path"],
-                source=row["source"],
-                category=row.get("category", ""),
-                caption=row.get("caption", ""),
-                score=float(row.get("_distance", 0)),
-            ))
+            similar_images.append(_row_to_image(row))
 
     return RetrievalContext(
         relevant_guidelines=relevant_guidelines,
