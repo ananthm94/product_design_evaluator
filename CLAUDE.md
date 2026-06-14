@@ -52,14 +52,19 @@ python -c "from agents.graph import build_graph; build_graph(['visual','ux','mar
   `HistoryRecord`).
 - `config/settings.py` — paths, CLIP/model settings, retrieval limits.
 
-## Design history store (note for future work)
+## Design history store
 
 `knowledge_base/history_store.py` persists every analysis (thumbnail + serialized
-`DesignReport` + CLIP embedding) to a LanceDB table `design_history` under `history/`.
-It is deliberately behind a `HistoryStore` Protocol with a `LanceDBHistoryStore`
-implementation and a `get_history_store()` singleton — **all backend-specific code is
-isolated here**. The intent is to swap the backend to **Qdrant** later without touching
-callers (`app.py` only uses `save_design` / `search_designs` / `list_recent`).
+`DesignReport` + CLIP embedding) behind a `HistoryStore` Protocol with **two backends**,
+chosen by `get_history_store()`:
+- `QdrantHistoryStore` — used when `QDRANT_URL` is set (the deployment backend, Qdrant Cloud
+  free tier). Thumbnail stored inline as base64 in the point payload.
+- `LanceDBHistoryStore` — local on-disk fallback (`history/`) when `QDRANT_URL` is unset.
+
+**All backend-specific code is isolated here**; callers (`app.py`) only use `save_design` /
+`search_designs` / `list_recent`. Config: `QDRANT_URL`, `QDRANT_API_KEY`,
+`QDRANT_HISTORY_COLLECTION` in `config/settings.py`. Possible future swap: another vector DB —
+just add a new class implementing the Protocol.
 
 ## Conventions
 
@@ -70,3 +75,35 @@ callers (`app.py` only uses `save_design` / `search_designs` / `list_recent`).
   `:orange[]`/`:violet[]` Streamlit color markup (severity colors in the UX detail
   expander are intentional/semantic).
 - Adding an agent: see the steps in `README.md` ("Adding A New Agent").
+
+## Project state & deployment (context handoff, 2026-06-14)
+
+**Deployed and live:** Hugging Face Space `ananthmohan/Product_Design_Evaluator` —
+**private**, **Docker** SDK, free `cpu-basic`. The `Dockerfile` installs CPU torch + deps and
+runs `streamlit run app.py` on port 8501. History → Qdrant Cloud free cluster (secrets set in
+the Space: `OPENROUTER_API_KEY`, `TAVILY_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`).
+
+**Git:** local repo only, branch `main`, remote `space` → the HF Space. **No GitHub remote**
+(user asked to hold). Uses **Git LFS** for `*.png` and `knowledge_base/lancedb_data/**`
+(HF rejects plain-git binaries). `.env`, `history/`, `.claude/` are gitignored.
+
+**Deploy gotchas already solved (keep these):**
+- File uploads broke inside HF's cross-origin iframe → fixed by `enableCORS=false` +
+  `enableXsrfProtection=false` in `.streamlit/config.toml`. Do not re-enable.
+- Reference images showed "image not found" because the index stored absolute build-machine
+  paths → `retrieval/retriever._resolve_ref_path()` now resolves them by filename against
+  `REFERENCE_IMAGES_DIR`. Keep reference images addressable by basename.
+- `README.md` YAML frontmatter drives the Space (sdk: docker, app_port: 8501,
+  `short_description` must be ≤60 chars).
+- thum.io renders async; use the `wait/…/maxAge/1` options in `scraper.py` to avoid the
+  "loading" placeholder. Verify scraped shots visually (e.g. Warby Parker was a maintenance
+  page → replaced with Glossier).
+
+**Uncommitted local work being held (per user "hold on git"):** refreshed all 25 reference
+screenshots and swapped Warby Parker → Glossier, with the LanceDB index rebuilt. NOT yet
+committed/pushed, so the **live Space still shows the older thumbnails**. To ship it later:
+`git add -A && git commit && git push space main`, then the Space rebuilds (~few min).
+
+**To redeploy after changes:** push to `space main`; poll status with
+`python -c "from huggingface_hub import HfApi; print(HfApi().get_space_runtime('ananthmohan/Product_Design_Evaluator').stage)"`
+until `RUNNING`.

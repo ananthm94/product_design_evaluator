@@ -4,6 +4,7 @@ history/
 __pycache__/
 *.pyc
 .DS_Store
+CLAUDE.md
 
 # The reference knowledge base ships with the app (read-only, regenerable via
 # `python knowledge_base/scraper.py`). It is committed so the Hugging Face Space

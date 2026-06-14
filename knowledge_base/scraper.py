@@ -23,8 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import REFERENCE_IMAGES_DIR
 
-THUMIO_TEMPLATE = "https://image.thum.io/get/width/1200/crop/1400/{url}"
-REQUEST_TIMEOUT = 60
+# `wait` lets thum.io finish rendering before responding (avoids the "loading"
+# placeholder image); `maxAge/1` busts its cache so re-runs get a fresh render.
+THUMIO_TEMPLATE = "https://image.thum.io/get/width/1200/crop/1400/wait/12/maxAge/1/{url}"
+REQUEST_TIMEOUT = 90
 
 # Curated set of well-designed, public sites grouped by design category.
 # Keep URLs bare (no scheme) — the slug is derived from the host.
@@ -53,7 +55,7 @@ CURATED_SITES: dict[str, list[str]] = {
         "https://www.shopify.com",
         "https://www.allbirds.com",
         "https://www.gymshark.com",
-        "https://www.warbyparker.com",
+        "https://www.glossier.com",
     ],
     "portfolio": [
         "https://bruno-simon.com",
