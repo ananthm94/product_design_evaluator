@@ -1,0 +1,13 @@
+.env
+history/
+.claude/
+__pycache__/
+*.pyc
+.DS_Store
+
+# The reference knowledge base ships with the app (read-only, regenerable via
+# `python knowledge_base/scraper.py`). It is committed so the Hugging Face Space
+# needs no ingest/scrape at runtime. To exclude it from version control instead,
+# re-add the two lines below and rebuild it on the host:
+#   knowledge_base/lancedb_data/
+#   knowledge_base/sources/reference_images/
