@@ -8,3 +8,7 @@ font = "sans serif"
 
 [server]
 headless = true
+# Hugging Face serves the app inside a cross-origin iframe, which blocks the
+# XSRF cookie and breaks st.file_uploader. Disabling XSRF/CORS fixes uploads.
+enableCORS = false
+enableXsrfProtection = false
