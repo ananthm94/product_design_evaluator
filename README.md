@@ -1,15 +1,8 @@
 ---
 
-## title: Product Design Evaluator
-emoji: 🎨
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_port: 8501
-pinned: false
-short_description: AI multi-agent design critique with image RAG
+## Product Design Evaluator
 
-# Design Analysis Suite
+## AI multi-agent design critique with image RAG
 
 [[Try the Live Demo on Hugging Face Spaces](http://huggingface.co/spaces/ananthmohan/Product_Design_Evaluator)]
 
