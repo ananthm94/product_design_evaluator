@@ -5,12 +5,15 @@ from ui.components import score_color
 DETAIL_DIALOG_KEY = "active_detail_dialog"
 
 
-def render_report(report: DesignReport):
+def render_report(report: DesignReport, key_prefix: str = ""):
     if not report:
         return
 
+    key_scope = f"{key_prefix}_" if key_prefix else ""
+    detail_state_key = f"{key_scope}{DETAIL_DIALOG_KEY}"
+
     if report.synthesis:
-        _render_synthesis_card(report.synthesis)
+        _render_synthesis_card(report.synthesis, key_scope)
 
     sections = []
     if report.visual_analysis:
@@ -28,13 +31,13 @@ def render_report(report: DesignReport):
         cols = st.columns(len(sections))
         for col, (label, icon, score_label, data) in zip(cols, sections):
             with col:
-                _render_summary_card(label, icon, score_label, data)
+                _render_summary_card(label, icon, score_label, data, key_scope, detail_state_key)
 
     if report.live_research:
-        _render_live_research_card(report.live_research)
+        _render_live_research_card(report.live_research, key_scope, detail_state_key)
 
 
-def _render_synthesis_card(s):
+def _render_synthesis_card(s, key_scope: str):
     score = s.overall_score
     with st.container(border=True):
         col_badge, col_label = st.columns([1, 5])
@@ -47,10 +50,17 @@ def _render_synthesis_card(s):
     if s.priority_actions:
         with st.expander("Priority actions"):
             for i, action in enumerate(s.priority_actions, 1):
-                st.checkbox(action, key=f"action_{i}")
+                st.checkbox(action, key=f"{key_scope}action_{i}")
 
 
-def _render_summary_card(label: str, icon: str, score_label: str, data):
+def _render_summary_card(
+    label: str,
+    icon: str,
+    score_label: str,
+    data,
+    key_scope: str,
+    detail_state_key: str,
+):
     score = data.score
     with st.container(border=True):
         col_icon, col_label, col_score = st.columns([1, 4, 1])
@@ -68,14 +78,14 @@ def _render_summary_card(label: str, icon: str, score_label: str, data):
         for r in rec:
             st.markdown(f"- _{r}_")
 
-        if st.button("Details", key=f"btn_{label}", use_container_width=True):
-            st.session_state[DETAIL_DIALOG_KEY] = label
+        if st.button("Details", key=f"{key_scope}btn_{label}", use_container_width=True):
+            st.session_state[detail_state_key] = label
 
-    if st.session_state.get(DETAIL_DIALOG_KEY) == label:
-        _open_detail_dialog(label, data, score_label)
+    if st.session_state.get(detail_state_key) == label:
+        _open_detail_dialog(label, data, score_label, detail_state_key, key_scope)
 
 
-def _render_live_research_card(data):
+def _render_live_research_card(data, key_scope: str, detail_state_key: str):
     with st.container(border=True):
         col_icon, col_label, col_sources = st.columns([1, 4, 2])
         with col_icon:
@@ -95,15 +105,15 @@ def _render_live_research_card(data):
         for item in data.opportunities[:1]:
             st.markdown(f"- _{item}_")
 
-        if st.button("Details", key="btn_Live_Research", use_container_width=True):
-            st.session_state[DETAIL_DIALOG_KEY] = "Live Research"
+        if st.button("Details", key=f"{key_scope}btn_Live_Research", use_container_width=True):
+            st.session_state[detail_state_key] = "Live Research"
 
-    if st.session_state.get(DETAIL_DIALOG_KEY) == "Live Research":
-        _open_live_research_dialog(data)
+    if st.session_state.get(detail_state_key) == "Live Research":
+        _open_live_research_dialog(data, detail_state_key, key_scope)
 
 
 @st.dialog("Analysis Details", width="large")
-def _open_detail_dialog(label: str, data, score_label: str):
+def _open_detail_dialog(label: str, data, score_label: str, detail_state_key: str, key_scope: str):
     _score_pill(data.score)
     st.markdown(f"### {score_label}")
     st.divider()
@@ -128,13 +138,13 @@ def _open_detail_dialog(label: str, data, score_label: str):
             for i, r in enumerate(data.recommendations, 1):
                 st.markdown(f"{i}. {r}")
 
-    if st.button("Close", key=f"close_dialog_{label}", use_container_width=True):
-        st.session_state[DETAIL_DIALOG_KEY] = None
+    if st.button("Close", key=f"{key_scope}close_dialog_{label}", use_container_width=True):
+        st.session_state[detail_state_key] = None
         st.rerun()
 
 
 @st.dialog("Live Research Details", width="large")
-def _open_live_research_dialog(data):
+def _open_live_research_dialog(data, detail_state_key: str, key_scope: str):
     st.markdown("### Live Research")
     if data.skipped_reason:
         st.info(data.skipped_reason)
@@ -167,8 +177,8 @@ def _open_live_research_dialog(data):
             if source.content:
                 st.caption(_truncate(source.content, 220))
 
-    if st.button("Close", key="close_dialog_Live_Research", use_container_width=True):
-        st.session_state[DETAIL_DIALOG_KEY] = None
+    if st.button("Close", key=f"{key_scope}close_dialog_Live_Research", use_container_width=True):
+        st.session_state[detail_state_key] = None
         st.rerun()
 
 

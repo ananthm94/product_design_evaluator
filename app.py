@@ -12,8 +12,10 @@ load_dotenv()
 
 from config.settings import AVAILABLE_MODELS, DEFAULT_LLM_MODEL
 from utils.image_utils import resize_image, image_to_base64
+from utils.secret_inputs import effective_secret
 from ui.report_renderer import render_report
 from ui.components import render_reference_gallery, score_color
+from ui.history_helpers import find_history_record, load_history_records
 from models.schemas import DesignReport, GraphState
 
 st.set_page_config(
@@ -61,31 +63,34 @@ if "history_selected" not in st.session_state:
 with st.sidebar:
     st.header("Settings")
 
-    api_key = st.text_input(
+    user_api_key = st.text_input(
         "OpenRouter API Key",
         type="password",
-        value=os.getenv("OPENROUTER_API_KEY", ""),
+        value="",
         help="Get your key at openrouter.ai",
     )
+    api_key = effective_secret(user_api_key, "OPENROUTER_API_KEY")
 
     default_model_index = AVAILABLE_MODELS.index(DEFAULT_LLM_MODEL) if DEFAULT_LLM_MODEL in AVAILABLE_MODELS else 0
     model = st.selectbox("Model", AVAILABLE_MODELS, index=default_model_index)
 
     with st.expander("Optional API keys"):
-        tavily_api_key = st.text_input(
+        user_tavily_api_key = st.text_input(
             "Tavily API Key",
             type="password",
-            value=os.getenv("TAVILY_API_KEY", ""),
+            value="",
             help="Enables Live Research",
         )
+        tavily_api_key = effective_secret(user_tavily_api_key, "TAVILY_API_KEY")
         if tavily_api_key:
             os.environ["TAVILY_API_KEY"] = tavily_api_key
 
-        langsmith_key = st.text_input(
+        user_langsmith_key = st.text_input(
             "LangSmith API Key",
             type="password",
-            value=os.getenv("LANGSMITH_API_KEY", ""),
+            value="",
         )
+        langsmith_key = effective_secret(user_langsmith_key, "LANGSMITH_API_KEY")
         if langsmith_key:
             os.environ["LANGSMITH_API_KEY"] = langsmith_key
             os.environ["LANGSMITH_TRACING"] = "true"
@@ -266,51 +271,64 @@ with tab_history:
     st.subheader("Past Designs")
     st.caption("A shared memory of every analyzed design — search and learn from previous reviews.")
 
-    store = get_history_store()
-    hquery = st.text_input(
-        "Search past designs",
-        placeholder="e.g. fintech app, low contrast, onboarding screen",
-        key="history_query",
-    )
+    history_list_col, history_report_col = st.columns([1, 1.35], gap="large")
 
-    records = store.search_designs(query_text=hquery, limit=12) if hquery else store.list_recent(limit=24)
+    with history_list_col:
+        hquery = st.text_input(
+            "Search past designs",
+            placeholder="e.g. fintech app, low contrast, onboarding screen",
+            key="history_query",
+        )
 
-    if not records:
-        st.info("No past designs yet. Analyze a design and it will appear here.")
-    else:
-        cols = st.columns(4)
-        for i, rec in enumerate(records):
-            with cols[i % 4]:
-                with st.container(border=True):
-                    try:
-                        if rec.thumb_b64:
-                            st.image(base64.b64decode(rec.thumb_b64), use_container_width=True)
-                        elif rec.thumb_path:
-                            st.image(rec.thumb_path, use_container_width=True)
-                        else:
-                            st.caption("(no thumbnail)")
-                    except Exception:
-                        st.caption("(thumbnail unavailable)")
-                    color = score_color(rec.overall_score)
-                    st.markdown(
-                        f'<span style="background:{color}; color:white; padding:2px 10px;'
-                        f' border-radius:8px; font-weight:600; font-size:0.85em;">'
-                        f'{rec.overall_score}/100</span>'
-                        f' <span class="ref-caption">{rec.category}</span>',
-                        unsafe_allow_html=True,
-                    )
-                    if rec.summary:
-                        st.caption(rec.summary[:120] + ("..." if len(rec.summary) > 120 else ""))
-                    if st.button("View report", key=f"hist_{rec.id}", use_container_width=True):
-                        st.session_state.history_selected = rec.id
+        records, history_error = load_history_records(get_history_store, hquery)
 
+        if history_error:
+            st.error(history_error)
+        elif not records:
+            st.info("No past designs yet. Analyze a design and it will appear here.")
+        else:
+            cols = st.columns(2)
+            for i, rec in enumerate(records):
+                with cols[i % 2]:
+                    with st.container(border=True):
+                        try:
+                            if rec.thumb_b64:
+                                st.image(base64.b64decode(rec.thumb_b64), use_container_width=True)
+                            elif rec.thumb_path:
+                                st.image(rec.thumb_path, use_container_width=True)
+                            else:
+                                st.caption("(no thumbnail)")
+                        except Exception:
+                            st.caption("(thumbnail unavailable)")
+                        color = score_color(rec.overall_score)
+                        st.markdown(
+                            f'<span style="background:{color}; color:white; padding:2px 10px;'
+                            f' border-radius:8px; font-weight:600; font-size:0.85em;">'
+                            f'{rec.overall_score}/100</span>'
+                            f' <span class="ref-caption">{rec.category}</span>',
+                            unsafe_allow_html=True,
+                        )
+                        if rec.summary:
+                            st.caption(rec.summary[:120] + ("..." if len(rec.summary) > 120 else ""))
+                        if st.button("View report", key=f"hist_{rec.id}", use_container_width=True):
+                            st.session_state.history_selected = rec.id
+
+    with history_report_col:
         selected_id = st.session_state.history_selected
-        if selected_id:
-            match = next((r for r in records if r.id == selected_id), None)
-            if match and match.report:
-                st.divider()
+        match = find_history_record(records, selected_id) if not history_error else None
+
+        if history_error:
+            st.info("History is temporarily unavailable. Try again after the backend is reachable.")
+        elif not selected_id:
+            st.info("Select a past design to view its full report here.")
+        elif match is None:
+            st.warning("The selected design is not in the current results.")
+        elif not match.report:
+            st.warning("This history record does not include a readable report.")
+        else:
+            with st.container(border=True):
                 st.markdown(f"### Report — {match.category} · {match.timestamp[:10]}")
                 if st.button("Close report", key="close_history_report"):
                     st.session_state.history_selected = None
                     st.rerun()
-                render_report(match.report)
+                render_report(match.report, key_prefix=f"history_{match.id}")
